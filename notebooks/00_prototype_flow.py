@@ -17,7 +17,7 @@ from pupilanalysis.data import read_data
 
 dm = read_data(data_eyetracking_path)
 
-# %% Blink reconstruction: interpolating and removing missing and invalid data
+# %% 01: Blink reconstruction: interpolating and removing missing and invalid data
 
 from pupilanalysis.config import smooth_winlen, vt_start, vt_end, maxdur, margin, gap_margin, gap_vt, std_thr
 from datamatrix import series as srs
@@ -33,7 +33,11 @@ dm.ptrace = srs.blinkreconstruct(dm.ptrace,
                                  std_thr=std_thr, 
                                  mode='advanced')
 
-# %% Baseline correction
+# %% 02: Gaze correction
+
+# %% 03: Downsampling
+
+# %% 04: Baseline correction
 
 from datamatrix import multidimensional
 import numpy as np
@@ -56,6 +60,8 @@ from pupilanalysis.visualise import plot_baselines
 
 plot_baselines(dm)
 dm.baseline
+
+# %% 05: Trial exclusion
 
 # %% Visualisations
 

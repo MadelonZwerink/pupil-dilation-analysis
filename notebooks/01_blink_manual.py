@@ -26,11 +26,12 @@ from pupilanalysis.visualise import plot_grid_trials
 
 plot_grid_trials(dm, manual_events=True, ptrace=True, bl_corrected=False)
 
-# %%
+# %% Use different parameters for blink reconstruction
 
 from datamatrix import series as srs
 import numpy as np
 
+# Default parameter settings, suitable for 1000 Hz data
 dm.ptrace0 = srs.blinkreconstruct(dm.ptrace,
                                  vt_start=10, 
                                  vt_end=5,
@@ -42,29 +43,56 @@ dm.ptrace0 = srs.blinkreconstruct(dm.ptrace,
                                  std_thr=3, 
                                  mode='advanced')
 
+# Simply divide/multiply by 4 to make parameters suitable for 250 Hz data
 dm.ptrace1 = srs.blinkreconstruct(dm.ptrace,
+                                 vt_start=40, # multiply
+                                 vt_end=20, # multiply
+                                 maxdur=125, # divide
+                                 margin=3, # divide
+                                 gap_margin=5, # divide
+                                 gap_vt=40, # multiply
+                                 smooth_winlen=5,  # divide
+                                 std_thr=3, # keep the same
+                                 mode='advanced')
+
+# Divide/multiply by 2
+dm.ptrace2 = srs.blinkreconstruct(dm.ptrace,
+                                 vt_start=20, 
+                                 vt_end=10,
+                                 maxdur=250, 
+                                 margin=5,
+                                 gap_margin=10,
+                                 gap_vt=20,
+                                 smooth_winlen=10,
+                                 std_thr=3, 
+                                 mode='advanced')
+
+# Combination of ptrace1 and ptrace2: vt multiplied by 2, windows divided by 4
+dm.ptrace3 = srs.blinkreconstruct(dm.ptrace,
+                                 vt_start=20, 
+                                 vt_end=10,
+                                 maxdur=250, 
+                                 margin=3,
+                                 gap_margin=5,
+                                 gap_vt=20,
+                                 smooth_winlen=5,
+                                 std_thr=3, 
+                                 mode='advanced')
+
+# Vt as default, margin divided by 2, rest divided by 4
+dm.ptrace4 = srs.blinkreconstruct(dm.ptrace,
                                  vt_start=10, 
                                  vt_end=5,
-                                 maxdur=125, 
-                                 margin=3,
-                                 gap_margin=5,
+                                 maxdur=250, 
+                                 margin=5,
+                                 gap_margin=10,
                                  gap_vt=10,
-                                 smooth_winlen=7,
+                                 smooth_winlen=5,
                                  std_thr=3, 
                                  mode='advanced')
 
-dm.ptrace2 = srs.blinkreconstruct(dm.ptrace,
-                                 vt_start=40, 
-                                 vt_end=20,
-                                 maxdur=125, 
-                                 margin=3,
-                                 gap_margin=5,
-                                 gap_vt=40,
-                                 smooth_winlen=7,
-                                 std_thr=3, 
-                                 mode='advanced')
-
-dm.ptrace3 = srs.blinkreconstruct(dm.ptrace,
+# Best parameters from previous tuning tryout
+dm.ptrace5 = srs.blinkreconstruct(dm.ptrace,
                                  vt_start=10, 
                                  vt_end=5,
                                  maxdur=200, 
@@ -75,25 +103,17 @@ dm.ptrace3 = srs.blinkreconstruct(dm.ptrace,
                                  std_thr=4, 
                                  mode='advanced')
 
-dm.ptrace4 = srs.blinkreconstruct(dm.ptrace,
-                                 vt_start=20, 
-                                 vt_end=10,
-                                 maxdur=200, 
-                                 margin=4,
-                                 gap_margin=5,
-                                 gap_vt=40,
-                                 smooth_winlen=5,
-                                 std_thr=4, 
-                                 mode='advanced')
+
 
 # %% Only plot the blinks to quickly see the effect of blink parameters
+
 from matplotlib import pyplot as plt, lines
 
 dm.row_i = range(len(dm))
 
 blink_rows = manual_events_df[manual_events_df.event_type == "blink"].row_i.unique()
-blink_rows = [246, 247, 264, 143, 163, 166, 170, 177, 201, 207, 215, 216, 217, 230, 239]
-param_sets = ['ptrace', 'ptrace0', 'ptrace1', 'ptrace2', 'ptrace3', 'ptrace4']
+blink_rows = [143, 163, 166, 170, 177, 201, 207, 215, 216, 217, 230, 239]
+param_sets = ['ptrace', 'ptrace0', 'ptrace1', 'ptrace2', 'ptrace3', 'ptrace4', 'ptrace5']
 
 fig, axs = plt.subplots(len(param_sets), len(blink_rows), figsize=(40, 20), sharex=True, sharey=True)
 ymax = np.nanmax(dm.ptrace.mean*2.5)
@@ -123,6 +143,13 @@ for j, row_nr in enumerate(blink_rows):
                 
         axs[i,j].set_title(f"Row: {row_nr}\tParam: {params}")
     
+# %% Plot pupil traces after blink reconstruction
+
+from pupilanalysis.visualise import plot_pupiltrace
+
+for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
+    plot_pupiltrace(inf, by='all', signal='ptrace', show_individual_trials=True, min_n_valid=100, ymax=2500)
+    plot_pupiltrace(inf, by='all', signal='ptrace5', show_individual_trials=True, min_n_valid=100, ymax=2500)
 
 
 

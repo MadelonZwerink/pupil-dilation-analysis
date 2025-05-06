@@ -129,7 +129,19 @@ def plot_pupiltrace(dm, by='condition', show_individual_trials=False,
 
 # %% plot_trials
 
-def plot_grid_trials(dm, nr_trials=81, manual_events=False, ymin=-5, auto_ymax=True, ymax=None, blinklist=True, ptrace=False, bl_corrected=True):
+def plot_grid_trials(dm, 
+                     nr_trials=81, 
+                     manual_events=False, 
+                     ymin=-5, 
+                     auto_ymax=True, 
+                     ymax=None, 
+                     blinklist=True, 
+                     fixations=False, 
+                     fix_xy=False,
+                     ptrace=False, 
+                     xtrace=False,
+                     ytrace=False,
+                     bl_corrected=True):
     
     gridsize = math.ceil(math.sqrt(nr_trials))
     
@@ -153,7 +165,17 @@ def plot_grid_trials(dm, nr_trials=81, manual_events=False, ymin=-5, auto_ymax=T
                             np.array(inf.ptrace[i, :]), 
                             label = "ptrace",
                             alpha = 0.8)    
-            
+            if xtrace:
+                axs[i].plot(np.arange(len(inf.ptrace[i])), 
+                            np.array(inf.xtrace[i, :]), 
+                            label = "xtrace",
+                            alpha = 0.8)    
+            if ytrace:
+                axs[i].plot(np.arange(len(inf.ptrace[i])), 
+                            np.array(inf.ytrace[i, :]), 
+                            label = "ytrace",
+                            alpha = 0.8) 
+                
             if bl_corrected:
                axs[i].plot(np.arange(len(inf.pupil[i])), 
                            np.array(inf.pupil[i, :]), 
@@ -170,6 +192,32 @@ def plot_grid_trials(dm, nr_trials=81, manual_events=False, ymin=-5, auto_ymax=T
                 blend = (inf.blinketlist[i, :] - inf.t_onset[i]) / 4
                 blend[blend > 992] = 992 # Blinks that ended after trial ended will be indicated at the end of the trial
                 axs[i].plot(blend, np.repeat(0, len(inf.blinketlist[i])), 'd', label = "blinketlist")
+                
+            if fixations:
+                fixst = (inf.fixstlist[i, :]) / 4
+                fixst[fixst < 0] = 0
+                fixet = (inf.fixetlist[i, :]) / 4
+                fixet[fixet > 992] = 992
+                
+                if fix_xy:
+                    fixx = inf.fixxlist[i, :]
+                    fixy = inf.fixylist[i, :]
+                    for start, end, x, y in zip(fixst, fixet, fixx, fixy):
+                        if not np.isnan(start) and not np.isnan(end):
+                            values = np.arange(start, end)
+                            axs[i].plot(values,
+                                        np.repeat(x, len(values)),
+                                        color="orange")
+                            axs[i].plot(values,
+                                        np.repeat(y, len(values)),
+                                        color="purple")
+                            axs[i].axvspan(start, end, alpha=0.2, color='pink')
+                            
+                for start, end in zip(fixst, fixet):
+                    if not np.isnan(start) and not np.isnan(end):   
+                        axs[i].axvspan(start, end, alpha=0.2, color='pink')
+                        
+
             
             if manual_events:
                 # Add manual blinks
@@ -206,7 +254,21 @@ def plot_grid_trials(dm, nr_trials=81, manual_events=False, ymin=-5, auto_ymax=T
 
  # %% plot_fixations
  
- 
+def plot_fixations(dm):
+    for i, row in zip(range(420,500), dm):
+        print('Trial %d' % i)
+        for x, y in zip(
+            row.fixxlist,
+            row.fixylist
+        ):
+            print('\t', x, y)
+    
+    x = np.array(dm.fixxlist)
+    y = np.array(dm.fixylist)
+    x = x.flatten()
+    y = y.flatten()
+    plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+    plt.show()
  
  # %% plot_nr_blinks
  
