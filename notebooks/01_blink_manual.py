@@ -107,7 +107,7 @@ dm.ptrace5 = srs.blinkreconstruct(dm.ptrace,
 
 # %% Only plot the blinks to quickly see the effect of blink parameters
 
-from matplotlib import pyplot as plt, lines
+from matplotlib import pyplot as plt
 
 dm.row_i = range(len(dm))
 
@@ -147,9 +147,13 @@ for j, row_nr in enumerate(blink_rows):
 
 from pupilanalysis.visualise import plot_pupiltrace
 
-for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
-    plot_pupiltrace(inf, by='all', signal='ptrace', show_individual_trials=True, min_n_valid=100, ymax=2500)
-    plot_pupiltrace(inf, by='all', signal='ptrace5', show_individual_trials=True, min_n_valid=100, ymax=2500)
+plot_pupiltrace(dm, by='split', signal='ptrace', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace0', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace1', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace2', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace3', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace4', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
+plot_pupiltrace(dm, by='split', signal='ptrace5', show_individual_trials=True, min_n_valid=100, ymax=2000, ymin=0)
 
 
 

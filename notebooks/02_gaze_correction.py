@@ -35,8 +35,18 @@ for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
 from pupilanalysis.visualise import plot_pupiltrace
 
 dm.dxtrace = dm.xtrace - 600
+dm.abs_dxtrace = dm.dxtrace @ (lambda x: abs(x))
 dm.dytrace = dm.ytrace - 400
+dm.abs_dytrace = dm.dytrace @ (lambda x: abs(x))
 
 for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
     plot_pupiltrace(inf, by='all', signal='dxtrace', show_individual_trials=True)
     plot_pupiltrace(inf, by='all', signal='dytrace', show_individual_trials=True)
+
+plot_pupiltrace(dm, by='participant', signal='abs_dxtrace', show_individual_trials=True)
+plot_pupiltrace(dm, by='participant', signal='abs_dytrace', show_individual_trials=True)
+
+plot_pupiltrace(dm, by='condition', signal='abs_dxtrace', show_individual_trials=True)
+plot_pupiltrace(dm, by='condition', signal='abs_dytrace', show_individual_trials=True)
+
+

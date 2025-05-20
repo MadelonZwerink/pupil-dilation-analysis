@@ -94,8 +94,10 @@ def read_data(data_path):
             stim_type.append(emph_or_func[i] + "_noise")
         else:
             stim_type.append(emph_or_func[i])
+            noise_or_fam[i] = "familiarization"
 
     cleaned_dm.stim_type = stim_type
+    cleaned_dm.stim_grouped = noise_or_fam
 
     # Extract participant labels from sessionid and store in participant
     cleaned_dm.sessionid = [re.search(r'\\00(\d+)_', filename).group(1) for filename in cleaned_dm.path]

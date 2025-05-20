@@ -34,4 +34,35 @@ for i, row in enumerate(dm[:10]):
     print(f"  Lookaway start: {row.video_lookaway_start}")
     print(f"  Lookaway end: {row.video_lookaway_end}")
 
-# %%
+# %% Custom algorithm that searches first 200ms for first 40ms of non-nan values
+# Written as function baseline_correction in pupilanalysis.custom_funcs
+
+import pandas as pd
+
+mean_values = []
+start_indices = []
+
+for row in dm:
+    signal = row.ptrace[:50]  # first 50 values only
+    found = False
+
+    for i in range(41):  # up to index 40 (inclusive) so i:i+10 is within bounds
+        window = signal[i:i+10]
+        if np.all(~np.isnan(window)):
+            mean_values.append(np.mean(window))
+            start_indices.append(i)
+            found = True
+            break
+
+    if not found:
+        mean_values.append(np.nan)
+        start_indices.append(np.nan)
+
+dm.baseline_flex = mean_values
+dm.blf_start_index = start_indices
+
+# Number of nan-baselines        
+np.sum(np.isnan(mean_values))
+
+# Start indices of baseline period
+pd.value_counts(np.array(start_indices))

@@ -9,7 +9,7 @@ import math
 
  # %% plot_baselines
  
-def plot_baselines(dm, by='participant'):
+def plot_baselines(dm, by='participant', col='baseline', title='Baselines per participant'):
     if by == 'participant':
         groups = ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5")
         labels = ["Inf2", "Inf3", "Inf4", "Inf5"]
@@ -20,13 +20,15 @@ def plot_baselines(dm, by='participant'):
         
         for i, (group, label, color) in enumerate(zip(groups, labels, colors)):
             ax = axes[i // 2, i % 2]  # Determine the axis to plot on (2x2 grid)
-            ax.hist(group.baseline, color=color, bins=20)
+            baseline = getattr(group, col)
+            ax.hist(baseline, color=color, bins=20)
             ax.set_title(label)
             ax.set_xlabel('Baseline Value')
             ax.set_ylabel('Frequency')
 
         # Adjust layout to avoid overlap
-        plt.tight_layout()
+        fig.suptitle(f"{title}", fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.98])
         plt.show()
 
  
@@ -56,17 +58,43 @@ def plot_series(x, s, color, label, show_individual_trials=False, min_n_valid=5)
     plt.fill_between(x, mean - se, mean + se, color=color, alpha=0.25, zorder=2)
     plt.plot(x, mean, color=color, label=f"{label} (N={valid_n})", linewidth=2, zorder=3)
     
+# %% plot_series_panel
+
+def plot_series_panel(ax, x, s, color, label, show_individual_trials=False, min_n_valid=5):
+    valid_n, valid_data = count_valid_traces(s)
+    valid_counts = np.sum(~np.isnan(valid_data), axis=0)
+    mean = np.nanmean(valid_data, axis=0)
+    se = np.nanstd(valid_data, axis=0) / np.sqrt(valid_counts)
+
+    mask = valid_counts < min_n_valid
+    mean[mask] = np.nan
+    se[mask] = np.nan
+
+    if show_individual_trials:
+        for trace in valid_data:
+            ax.plot(x, trace, alpha=0.5, linewidth=0.6, zorder=1)
+
+    ax.fill_between(x, mean - se, mean + se, color=color, alpha=0.25, zorder=2)
+    ax.plot(x, mean, color=color, label=f"{label} (N={valid_n})", linewidth=0.8, zorder=3)
 
 # %% plot_pupiltrace
 
-def plot_pupiltrace(dm, by='condition', show_individual_trials=False, 
-                    ymin=None, ymax=None, signal='pupil', min_n_valid=5):
+def plot_pupiltrace(dm, 
+                    by='condition', 
+                    show_individual_trials=False, 
+                    ymin=None, 
+                    ymax=None, 
+                    xmin=0,
+                    xmax=4,
+                    signal='pupil', 
+                    min_n_valid=5,
+                    title='Pupil trace'):
     """
     Plot pupil traces over time, grouped by 'condition', 'participant', or all together.
 
     Parameters:
         dm: data matrix containing pupil data.
-        by: str, one of 'condition', 'participant', or 'all'.
+        by: str, one of 'condition', 'participant', 'split', or 'all'.
         show_individual_trials: bool, whether to show individual traces.
         ymin: float, min y-axis value.
         ymax: float, max y-axis value.
@@ -75,8 +103,9 @@ def plot_pupiltrace(dm, by='condition', show_individual_trials=False,
     x = np.linspace(0, 4, len(dm.ttrace[0]))
 
     plt.figure()
-    plt.axvline(0, linestyle=':', color='black')
-    plt.axhline(1, linestyle=':', color='black')
+    
+    if ymin < 0:
+        plt.axhline(y=0, color='black', linestyle='--', linewidth=1) 
 
     if by == 'condition':
         groups = ops.split(dm.stim_type, 
@@ -94,6 +123,23 @@ def plot_pupiltrace(dm, by='condition', show_individual_trials=False,
                         min_n_valid=min_n_valid)
 
         plt.legend(frameon=False, title='Stimulus type')
+        plt.title(f"{title}")
+        
+    if by == 'condition_grouped':
+        groups = ops.split(dm.stim_grouped, 
+                           "noise", 
+                           "familiarization")
+        labels = ["noise", "familiarization"]
+        colors = ["blue", "green"]
+
+        for group, label, color in zip(groups, labels, colors):
+            traces = getattr(group, signal)
+            plot_series(x, traces, color=color, label=label, 
+                        show_individual_trials=show_individual_trials,
+                        min_n_valid=min_n_valid)
+
+        plt.legend(frameon=False, title='Stimulus type')
+        plt.title(f"{title}")
 
     elif by == 'participant':
         groups = ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5")
@@ -107,6 +153,7 @@ def plot_pupiltrace(dm, by='condition', show_individual_trials=False,
                         min_n_valid=min_n_valid)
 
         plt.legend(frameon=False, title='Participant')
+        plt.title(f"{title}")
 
     elif by == 'all':
         traces = getattr(dm, signal)
@@ -114,15 +161,47 @@ def plot_pupiltrace(dm, by='condition', show_individual_trials=False,
                     show_individual_trials=show_individual_trials,
                     min_n_valid=min_n_valid)
         plt.legend(frameon=False)
+        plt.title(f"{title}")
+    
+    elif by == "split":
+        participants = ["inf2", "inf3", "inf4", "inf5"]
+        colors = ["green", "blue", "purple", "red"]
+        groups = ops.split(dm.participant, *participants)
 
+        n = len(participants)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 6), sharex=True, sharey=False)
+        axes = axes.flatten()  # Convert to 1D array for easier indexing
+
+        if n == 1:
+            axes = [axes]  # Ensure iterable if only one subplot
+
+        for ax, group, participant, color in zip(axes, groups, participants, colors):
+            traces = getattr(group, signal)
+            plot_series_panel(ax, x, traces, color='black', label=participant,
+                              show_individual_trials=show_individual_trials,
+                              min_n_valid=min_n_valid)
+            ax.set_title(f"Participant: {participant}")
+            ax.set_ylabel(f"{signal}")
+
+        axes[-1].set_xlabel("Time relative to onset stimulus (s)")
+        if ymin is not None or ymax is not None:
+            for i, ax in enumerate(axes):
+                ax.set_ylim(ymin, ymax[i])
+        ax.set_xlim(xmin, xmax)
+
+        fig.suptitle(f"{title}", fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.98])
+    
     else:
         raise ValueError("Invalid `by` argument. Must be 'condition', 'participant', or 'all'.")
 
-    plt.ylabel('Pupil size (norm)')
-    plt.xlabel('Time relative to onset retention interval (s)')
+    plt.ylabel(f"{signal}")
+    plt.xlabel('Time relative to onset stimulus (s)')
 
     if ymin is not None or ymax is not None:
         plt.ylim(ymin, ymax)
+        
+    plt.xlim(xmin, xmax)
 
     plt.show()
 
@@ -161,10 +240,26 @@ def plot_grid_trials(dm,
             axs[i].set_xticks([0, 250, 500, 750], labels=[0, 1, 2, 3])
             
             if ptrace:
-                axs[i].plot(np.arange(len(inf.ptrace[i])), 
-                            np.array(inf.ptrace[i, :]), 
-                            label = "ptrace",
-                            alpha = 0.8)    
+                trace = np.array(inf.ptrace[i, :])
+                axs[i].plot(np.arange(len(trace)), trace, label="ptrace", alpha=0.8)
+                
+                # Highlight NaN regions
+                nan_mask = np.isnan(trace)
+                if np.any(nan_mask):
+                    # Find start and end of NaN runs
+                    in_nan = False
+                    for idx, val in enumerate(nan_mask):
+                        if val and not in_nan:
+                            start = idx
+                            in_nan = True
+                        elif not val and in_nan:
+                            end = idx
+                            axs[i].axvspan(start, end, color='lightgray', alpha=0.4, label="NaN region" if start == idx else None)
+                            in_nan = False
+                    # If ends in NaN
+                    if in_nan:
+                        axs[i].axvspan(start, len(trace), color='lightgray', alpha=0.4)
+ 
             if xtrace:
                 axs[i].plot(np.arange(len(inf.ptrace[i])), 
                             np.array(inf.xtrace[i, :]), 
@@ -272,5 +367,48 @@ def plot_fixations(dm):
  
  # %% plot_nr_blinks
  
+# %% plot_compare_baselines
 
+def plot_compare_baselines(dm, baselines1, baselines2):
+    baseline1 = np.array(getattr(dm, baselines1))
+    baseline2 = np.array(getattr(dm, baselines2))
+    x = np.arange(len(dm))
+
+    nan_display_value = 0  # You can change this to another placeholder if desired
+
+    # Replace NaNs with placeholder y-value for plotting
+    baseline1_plot = np.where(np.isnan(baseline1), nan_display_value, baseline1)
+    baseline2_plot = np.where(np.isnan(baseline2), nan_display_value, baseline2)
+
+    plt.figure(figsize=(12, 6))
+
+    # Define block width and colors
+    block_width = 81
+    colors = ['#f0f0f0', '#d0e0f0', '#f0d0d0', '#e0f0d0']  # Light gray/blue/pink/green
+
+    # Draw the background blocks
+    for i in range(4):
+        start = i * block_width
+        end = start + block_width
+        plt.axvspan(start, end, facecolor=colors[i % len(colors)], alpha=0.3, zorder=0)
+
+    # Draw a line between each baseline and baseline_flex point (even if one or both were NaN)
+    for i in x:
+        plt.plot([i, i], [baseline1_plot[i], baseline2_plot[i]], color='red', alpha=0.5, zorder=1)
+
+    # Plot the baseline and baseline_flex points
+    plt.scatter(x, baseline1_plot, label=baselines1, color='blue', zorder=2)
+    plt.scatter(x, baseline2_plot, label=baselines2, color='orange', marker='x', zorder=2)
+
+    plt.axhline(nan_display_value, color='black', linestyle='--', alpha=0.3, label='NaN marker')
+
+    plt.xlim(0, len(dm))
+    plt.xlabel('Row index')
+    plt.ylabel('Baseline value')
+    plt.title('Comparison of baseline values (NaNs Displayed at y=0)')
+    plt.legend()
+    plt.xticks(ticks=np.arange(0, len(dm), 9))  # Set your regular x-ticks if needed
+    plt.grid(axis='x', which='major', linewidth=0.2)
+    plt.tight_layout()
+    plt.show()
 

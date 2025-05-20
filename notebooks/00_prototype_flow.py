@@ -39,27 +39,20 @@ dm.ptrace = srs.blinkreconstruct(dm.ptrace,
 
 # %% 04: Baseline correction
 
-from datamatrix import multidimensional
-import numpy as np
-from pupilanalysis.config import start_bl, end_bl
+from pupilanalysis.config import baseline_len
+from pupilanalysis.custom_funcs import baseline_correction
 
-dm.pupil = srs.baseline(
-    series=dm.ptrace,
-    baseline=dm.ptrace,
-    bl_start=start_bl,
-    bl_end=end_bl
-)
-
-dm.baseline = multidimensional.reduce(srs.window(dm.ptrace, 
-                                               start=start_bl, end=end_bl),
-                                    operation=np.nanmedian
-                                    )
-dm.baseline = dm.ptrace[:, 0] - dm.pupil[:, 0]
+bl = baseline_correction(dm, col='ptrace', baseline_len=baseline_len)
+dm.baseline = bl[0]
+dm.bl_start_index = bl[1]
 
 from pupilanalysis.visualise import plot_baselines
 
 plot_baselines(dm)
-dm.baseline
+
+from pupilanalysis.custom_funcs import bl_to_zscore
+
+dm.bl_zscore = bl_to_zscore(dm, col='baseline')
 
 # %% 05: Trial exclusion
 
