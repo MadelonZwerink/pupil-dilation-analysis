@@ -29,9 +29,34 @@ print(f"Number of set baselines: {len(dm.baseline) - np.sum(np.isnan(dm.baseline
 
 from pupilanalysis.custom_funcs import baseline_correction
 
-bl_manual = baseline_correction(dm)
+bl_manual = baseline_correction(dm, window_len=900)
 dm.baseline_flex = bl_manual[0]
 dm.blf_start_index = bl_manual[1]
+
+from matplotlib import pyplot as plt
+plt.scatter(range(len(dm)), bl_manual[2], c=range(len(dm)))
+plt.show()
+
+plt.scatter(range(len(dm)), bl_manual[3], c=range(len(dm)))
+plt.show()
+
+plt.scatter(bl_manual[3], bl_manual[2], c=range(len(dm)))
+plt.show()
+
+import pandas as pd
+pd.value_counts(bl_manual[1], bins=[0,1,50,100,1000])
+
+bl_start_index = np.array(bl_manual[1])
+indices_late_start = np.where(bl_start_index > 50)
+bl_percent_empty_total = np.array(bl_manual[3])
+
+plt.scatter(indices_late_start, bl_percent_empty_total[indices_late_start], c=bl_start_index[indices_late_start])
+
+bl_start_index = np.array(bl_manual[1])
+indices_late_start = np.where(bl_start_index > 100)
+bl_percent_empty_total = np.array(bl_manual[3])
+
+plt.scatter(indices_late_start, bl_percent_empty_total[indices_late_start], c=bl_start_index[indices_late_start])
 
 # %% Visualize baselines for both methods
 
@@ -103,7 +128,7 @@ from pupilanalysis.custom_funcs import baseline_correction
   
 for baseline_len in range(2,11):  
     print(f"Baseline window length: {baseline_len}")
-    dm.baseline = multidimensional.reduce(srs.window(dm.ptrace4, 
+    dm.baseline = multidimensional.reduce(srs.window(dm.ptrace, 
                                                    start=0, end=baseline_len),
                                         operation=np.mean
                                         )
@@ -111,7 +136,7 @@ for baseline_len in range(2,11):
     # Number of nan-baselines
     print(f"Number of set baselines: {len(dm.baseline) - np.sum(np.isnan(dm.baseline))}")
     
-    bl_manual = baseline_correction(dm, col='ptrace4', baseline_len=baseline_len)
+    bl_manual = baseline_correction(dm, col='ptrace', baseline_len=baseline_len)
     dm.baseline_flex = bl_manual[0]
     dm.blf_start_index = bl_manual[1]
     

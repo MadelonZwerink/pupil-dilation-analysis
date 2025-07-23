@@ -26,10 +26,18 @@ plot_grid_trials(dm, manual_events=False, xtrace=True, ytrace=True, bl_corrected
 # %%
 
 from datamatrix import operations as ops
-from pupilanalysis.visualise import plot_grid_trials, plot_fixations
+from pupilanalysis.visualise import plot_fixations
 
 for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
-    plot_fixations(inf)
+    plot_fixations(inf, plot_type='heatmap')
+
+# %%
+
+from datamatrix import operations as ops
+from pupilanalysis.visualise import plot_coordinates
+
+for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
+    plot_coordinates(inf, plot_type='heatmap')
 
 # %%
 from pupilanalysis.visualise import plot_pupiltrace

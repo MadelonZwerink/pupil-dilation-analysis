@@ -349,22 +349,32 @@ def plot_grid_trials(dm,
 
  # %% plot_fixations
  
-def plot_fixations(dm):
-    for i, row in zip(range(420,500), dm):
-        print('Trial %d' % i)
-        for x, y in zip(
-            row.fixxlist,
-            row.fixylist
-        ):
-            print('\t', x, y)
-    
+def plot_fixations(dm, plot_type='heatmap'):
     x = np.array(dm.fixxlist)
     y = np.array(dm.fixylist)
     x = x.flatten()
     y = y.flatten()
-    plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+    if plot_type == 'heatmap':
+        plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+    elif plot_type == 'scatterplot':
+        plt.scatter(x, y)
+        plt.axis((0, 1099, 0, 799))
     plt.show()
  
+    # %% plot_coordinates
+    
+def plot_coordinates(dm, plot_type='heatmap'):
+    x = np.array(dm.xtrace)
+    y = np.array(dm.ytrace)
+    x = x.flatten()
+    y = y.flatten()
+    if plot_type == 'heatmap':
+        plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+    elif plot_type == 'scatterplot':
+        plt.scatter(x, y)
+        plt.axis((0, 1099, 0, 799))
+    plt.show()
+    
  # %% plot_nr_blinks
  
 # %% plot_compare_baselines
