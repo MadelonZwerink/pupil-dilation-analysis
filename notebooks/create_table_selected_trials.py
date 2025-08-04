@@ -21,6 +21,7 @@ dm = read_data(data_eyetracking_path)
 
 from pupilanalysis.custom_funcs import perform_trial_exclusion
 import pandas as pd
+from datamatrix import operations as ops 
 
 # %% Perform trial exclusion with threshold to 0.6 so that all trials that are 
 # excluded, are set to 0, all others are set to 1

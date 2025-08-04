@@ -46,6 +46,8 @@ dm.incl_and_bl = dm.bl_incl * dm.trial_incl
 
 # %% 
 
+from datamatrix import operations as ops 
+
 # Split the dataset into different segments
 # Set 1: noise_1 to noise_9
 noise_set = {f"noise_{i}" for i in range(1, 10)}

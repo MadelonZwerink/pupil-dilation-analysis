@@ -34,16 +34,16 @@ def count_valid_traces(traces, nan_threshold=1.0):
 
 # %% perform_trial_exclusion
 
-def perform_trial_exclusion(dm, threshold, t_end):
+def perform_trial_exclusion(dm, threshold, t_end, col='ptrace'):
     #If i == True: trial is included, contains less missing data than threshold
     row = {"threshold": round(threshold, ndigits=2)}
         
     for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
-        valid_n_inf, _, i = count_valid_traces(inf.ptrace[:,0:round(t_end)], threshold)
+        valid_n_inf, _, i = count_valid_traces(getattr(dm, col)[:,0:round(t_end)], threshold)
         row[inf.participant[0]] = round(valid_n_inf / len(inf), ndigits=2)
         
     # Total DM
-    valid_n_total, _, i = count_valid_traces(dm.ptrace[:,0:round(t_end)], threshold)
+    valid_n_total, _, i = count_valid_traces(getattr(dm, col)[:,0:round(t_end)], threshold)
     row["dm"] = round(valid_n_total / len(dm), ndigits=2)
     
     return(row, i)

@@ -20,6 +20,11 @@ dm = correct_times_to_relative(dm)
 dm = process_video_events(dm, eyetracking_manual)
 manual_events_df = create_event_df(dm, eyetracking_manual)
 
+# %% Calculate the number of blinks per trial
+
+import numpy as np
+nr_blinks = np.sum(~np.isnan(dm.blinkstlist) * 1, axis = 1)
+
 # %% Visualize data before blink reconstruction
 
 from pupilanalysis.visualise import plot_grid_trials
@@ -30,6 +35,7 @@ plot_grid_trials(dm, manual_events=True, ptrace=True, bl_corrected=False)
 
 from datamatrix import series as srs
 import numpy as np
+import pandas as pd
 
 # Default parameter settings, suitable for 1000 Hz data
 dm.ptrace0 = srs.blinkreconstruct(dm.ptrace,
@@ -57,38 +63,38 @@ dm.ptrace1 = srs.blinkreconstruct(dm.ptrace,
 
 # Divide/multiply by 2
 dm.ptrace2 = srs.blinkreconstruct(dm.ptrace,
-                                 vt_start=20, 
-                                 vt_end=10,
-                                 maxdur=250, 
-                                 margin=5,
-                                 gap_margin=10,
-                                 gap_vt=20,
-                                 smooth_winlen=10,
-                                 std_thr=3, 
+                                 vt_start=7, 
+                                 vt_end=5,
+                                 maxdur=150, 
+                                 margin=3,
+                                 gap_margin=5,
+                                 gap_vt=8,
+                                 smooth_winlen=5,
+                                 std_thr=2.5, 
                                  mode='advanced')
 
 # Combination of ptrace1 and ptrace2: vt multiplied by 2, windows divided by 4
 dm.ptrace3 = srs.blinkreconstruct(dm.ptrace,
-                                 vt_start=20, 
-                                 vt_end=10,
-                                 maxdur=250, 
+                                 vt_start=7, 
+                                 vt_end=5,
+                                 maxdur=200, 
                                  margin=3,
                                  gap_margin=5,
-                                 gap_vt=20,
-                                 smooth_winlen=5,
+                                 gap_vt=8,
+                                 smooth_winlen=11,
                                  std_thr=3, 
                                  mode='advanced')
 
-# Vt as default, margin divided by 2, rest divided by 4
+# Dividing everything by 4, except std_thr
 dm.ptrace4 = srs.blinkreconstruct(dm.ptrace,
-                                 vt_start=10, 
-                                 vt_end=5,
-                                 maxdur=250, 
-                                 margin=5,
-                                 gap_margin=10,
-                                 gap_vt=10,
-                                 smooth_winlen=5,
-                                 std_thr=3, 
+                                 vt_start=7, 
+                                 vt_end=4,
+                                 maxdur=125, 
+                                 margin=3,
+                                 gap_margin=5,
+                                 gap_vt=7,
+                                 smooth_winlen=7,
+                                 std_thr=4, 
                                  mode='advanced')
 
 # Best parameters from previous tuning tryout
@@ -98,9 +104,9 @@ dm.ptrace5 = srs.blinkreconstruct(dm.ptrace,
                                  maxdur=200, 
                                  margin=3,
                                  gap_margin=5,
-                                 gap_vt=20,
-                                 smooth_winlen=3,
-                                 std_thr=4, 
+                                 gap_vt=8,
+                                 smooth_winlen=5,
+                                 std_thr=3, 
                                  mode='advanced')
 
 
@@ -158,6 +164,7 @@ plot_pupiltrace(dm, by='split', signal='ptrace5', show_individual_trials=True, m
 # %% Data loss for different methods
 
 from pupilanalysis.config import data_dir
+from datamatrix import operations as ops 
 
 # =============================================================================
 # Data loss
@@ -184,15 +191,12 @@ for inf_label, inf in enumerate(ops.split(dm.participant, "inf2", "inf3", "inf4"
 
 # Convert collected data into a DataFrame
 df = pd.DataFrame(data)
-df.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction.csv", index=False)
 
 # Compute averages per 'inf'
 average_per_inf = df.groupby("inf").mean(numeric_only=True).reset_index()
-average_per_inf.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction_per_inf.csv", index=False)
 
 # Compute averages per 'i' (trial)
 average_per_trial = df.groupby("i").mean(numeric_only=True).reset_index()
-average_per_trial.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction_per_trial.csv", index=False)
 
 # Display results
 print("Average per 'inf':")
@@ -201,6 +205,77 @@ print(average_per_inf)
 print("\nAverage per 'i' (trial):")
 print(average_per_trial)
 
+# Average valid data for each set of parameters
+average_per_trial.mean(axis=0)
+# Average valid data for each set of parametes, excluding the last set of trials
+average_per_trial[0:50].mean(axis=0)
+
+# %% Plot all traces per setting
+
+param_sets = ['ptrace', 'ptrace0', 'ptrace2', 'ptrace3', 'ptrace4', 'ptrace5']
+      
+fig, axes = plt.subplots(3, 2, figsize=(12, 9), sharex=True, sharey=True)
+axes = axes.flatten()
+
+for i, param_set in enumerate(param_sets):
+    ax = axes[i]
+    traces = getattr(dm.trialnr < 10, param_set)
+    for trace in traces:
+        ax.plot(range(dm.ptrace.depth), trace, alpha=0.4)
+    ax.set_title(param_set)
+    ax.grid(True)
+    ax.set_ylim(0, 3000)
+
+# %% Plot all traces per setting and per participant
+
+for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
+    fig, axes = plt.subplots(2, 3, figsize=(12, 10), sharex=True, sharey=True)
+    axes = axes.flatten()
+
+    for i, param_set in enumerate(param_sets):
+        ax = axes[i]
+        traces = getattr(inf, param_set)
+        for trace in traces:
+            ax.plot(range(dm.ptrace.depth), trace, alpha=0.6)
+        ax.set_title(param_set)
+        ax.grid(True)
+        if inf.participant == "inf2": ax.set_ylim(200, 1700)
+        if inf.participant == "inf3": ax.set_ylim(400, 1400)
+        if inf.participant == "inf4": ax.set_ylim(300, 1000)
+    plt.suptitle(inf.participant[0])
+    plt.tight_layout()
+    plt.show()
+
+# %% Plot all traces per setting and per participant, only for the selected trials
+
+from pupilanalysis.custom_funcs import perform_trial_exclusion
+
+trial_excl = perform_trial_exclusion(dm, threshold=0.6, t_end=dm.ptrace.depth)
+dm.trial_incl = trial_excl[1].tolist() * 1
+
+for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
+    fig, axes = plt.subplots(2, 3, figsize=(12, 10), sharex=True, sharey=True)
+    axes = axes.flatten()
+
+    for i, param_set in enumerate(param_sets):
+        ax = axes[i]
+        traces = getattr(inf.trial_incl == 1, param_set)
+        for trace in traces:
+            ax.plot(range(dm.ptrace.depth), trace, alpha=0.4)
+        ax.set_title(param_set)
+        ax.grid(True)
+        if inf.participant == "inf2": ax.set_ylim(200, 1700)
+        if inf.participant == "inf3": ax.set_ylim(400, 1400)
+        if inf.participant == "inf4": ax.set_ylim(300, 1000)
+    plt.suptitle(inf.participant[0])
+    plt.tight_layout()
+    plt.show()
 
 
+# %%
+
+# Save datasets
+df.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction.csv", index=False)
+average_per_inf.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction_per_inf.csv", index=False)
+average_per_trial.to_csv(f"{data_dir}/processed/data_loss_blink_reconstruction_per_trial.csv", index=False)
 

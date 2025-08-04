@@ -12,7 +12,7 @@ import math
 def plot_baselines(dm, by='participant', col='baseline', title='Baselines per participant'):
     if by == 'participant':
         groups = ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5")
-        labels = ["Inf2", "Inf3", "Inf4", "Inf5"]
+        labels = ["inf2", "inf3", "inf4", "inf5"]
         colors = ["green", "blue", "purple", "pink"]
 
         # Create 2x2 grid of subplots
@@ -23,19 +23,19 @@ def plot_baselines(dm, by='participant', col='baseline', title='Baselines per pa
             baseline = getattr(group, col)
             ax.hist(baseline, color=color, bins=20)
             ax.set_title(label)
-            ax.set_xlabel('Baseline Value')
-            ax.set_ylabel('Frequency')
 
         # Adjust layout to avoid overlap
         fig.suptitle(f"{title}", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.supxlabel('Baseline pupil size (A.U.)')
+        fig.supylabel('Frequency')
+        plt.tight_layout(rect=[0, 0, 1, 0.98])        
         plt.show()
 
  
  # %% plot_series
 
 def plot_series(x, s, color, label, show_individual_trials=False, min_n_valid=5):
-    valid_n, valid_data = count_valid_traces(s)
+    valid_n, valid_data, valid_index = count_valid_traces(s, nan_threshold=1)
 
     # Count how many non-NaN values at each time point
     valid_counts = np.sum(~np.isnan(valid_data), axis=0)
@@ -61,7 +61,7 @@ def plot_series(x, s, color, label, show_individual_trials=False, min_n_valid=5)
 # %% plot_series_panel
 
 def plot_series_panel(ax, x, s, color, label, show_individual_trials=False, min_n_valid=5):
-    valid_n, valid_data = count_valid_traces(s)
+    valid_n, valid_data, valid_index = count_valid_traces(s)
     valid_counts = np.sum(~np.isnan(valid_data), axis=0)
     mean = np.nanmean(valid_data, axis=0)
     se = np.nanstd(valid_data, axis=0) / np.sqrt(valid_counts)
@@ -88,7 +88,9 @@ def plot_pupiltrace(dm,
                     xmax=4,
                     signal='pupil', 
                     min_n_valid=5,
-                    title='Pupil trace'):
+                    title='',
+                    xlab=None,
+                    ylab=None):
     """
     Plot pupil traces over time, grouped by 'condition', 'participant', or all together.
 
@@ -100,12 +102,13 @@ def plot_pupiltrace(dm,
         ymax: float, max y-axis value.
         signal: str, either 'pupil' or 'ptrace', depending on which trace to use.
     """
-    x = np.linspace(0, 4, len(dm.ttrace[0]))
+    x = np.linspace(0, 4, getattr(dm, signal).depth)
 
     plt.figure()
     
-    if ymin < 0:
-        plt.axhline(y=0, color='black', linestyle='--', linewidth=1) 
+    if ymin is not None:
+        if ymin < 0:
+            plt.axhline(y=0, color='black', linestyle='--', linewidth=1) 
 
     if by == 'condition':
         groups = ops.split(dm.stim_type, 
@@ -114,7 +117,7 @@ def plot_pupiltrace(dm,
                            "emphasized_noise",
                            "functional_noise")
         labels = ["Emphasized", "Functional", "Emphasized noise", "Functional noise"]
-        colors = ["blue", "red", "green", "red"]
+        colors = ["blue", "red", "green", "pink"]
 
         for group, label, color in zip(groups, labels, colors):
             traces = getattr(group, signal)
@@ -144,7 +147,7 @@ def plot_pupiltrace(dm,
     elif by == 'participant':
         groups = ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5")
         labels = ["Inf2", "Inf3", "Inf4", "Inf5"]
-        colors = ["green", "blue", "purple", "red"]
+        colors = ["green", "blue", "purple", "pink"]
 
         for group, label, color in zip(groups, labels, colors):
             traces = getattr(group, signal)
@@ -165,11 +168,11 @@ def plot_pupiltrace(dm,
     
     elif by == "split":
         participants = ["inf2", "inf3", "inf4", "inf5"]
-        colors = ["green", "blue", "purple", "red"]
+        colors = ["green", "blue", "purple", "pink"]
         groups = ops.split(dm.participant, *participants)
 
         n = len(participants)
-        fig, axes = plt.subplots(2, 2, figsize=(16, 6), sharex=True, sharey=False)
+        fig, axes = plt.subplots(4, 1, figsize=(7.5,11.25), sharex=True, sharey=False)
         axes = axes.flatten()  # Convert to 1D array for easier indexing
 
         if n == 1:
@@ -180,23 +183,28 @@ def plot_pupiltrace(dm,
             plot_series_panel(ax, x, traces, color='black', label=participant,
                               show_individual_trials=show_individual_trials,
                               min_n_valid=min_n_valid)
-            ax.set_title(f"Participant: {participant}")
-            ax.set_ylabel(f"{signal}")
+            ax.set_title(f"{participant}")
 
-        axes[-1].set_xlabel("Time relative to onset stimulus (s)")
         if ymin is not None or ymax is not None:
             for i, ax in enumerate(axes):
                 ax.set_ylim(ymin, ymax[i])
         ax.set_xlim(xmin, xmax)
 
         fig.suptitle(f"{title}", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.supxlabel("Time relative to onset stimulus (s)")
+        fig.supylabel("Pupil size (A.U.)")
+        plt.tight_layout(pad=0.7)
     
     else:
         raise ValueError("Invalid `by` argument. Must be 'condition', 'participant', or 'all'.")
 
-    plt.ylabel(f"{signal}")
-    plt.xlabel('Time relative to onset stimulus (s)')
+    if by != 'split': 
+        if xlab is None:
+            plt.xlabel('Time relative to onset stimulus (s)')
+        else: plt.xlabel(xlab)
+        if ylab is None:
+            plt.ylabel("Pupil size (A.U.)")
+        else: plt.ylabel(ylab)
 
     if ymin is not None or ymax is not None:
         plt.ylim(ymin, ymax)
@@ -349,31 +357,47 @@ def plot_grid_trials(dm,
 
  # %% plot_fixations
  
-def plot_fixations(dm, plot_type='heatmap'):
+def plot_fixations(dm, ax=None, plot_type='heatmap', title=''):
     x = np.array(dm.fixxlist)
     y = np.array(dm.fixylist)
     x = x.flatten()
     y = y.flatten()
-    if plot_type == 'heatmap':
-        plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
-    elif plot_type == 'scatterplot':
-        plt.scatter(x, y)
-        plt.axis((0, 1099, 0, 799))
-    plt.show()
+    if ax is None:
+        if plot_type == 'heatmap':
+            plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+        elif plot_type == 'scatterplot':
+            plt.scatter(x, y)
+            plt.axis((0, 1099, 0, 799))
+        plt.set_title(title)
+    else:
+        if plot_type == 'heatmap':
+            ax.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+        elif plot_type == 'scatterplot':
+            ax.scatter(x, y)
+            ax.axis((0, 1099, 0, 799))            
+        ax.set_title(title)
  
     # %% plot_coordinates
     
-def plot_coordinates(dm, plot_type='heatmap'):
+def plot_coordinates(dm, ax=None, plot_type='heatmap', title=''):
     x = np.array(dm.xtrace)
     y = np.array(dm.ytrace)
     x = x.flatten()
     y = y.flatten()
-    if plot_type == 'heatmap':
-        plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
-    elif plot_type == 'scatterplot':
-        plt.scatter(x, y)
-        plt.axis((0, 1099, 0, 799))
-    plt.show()
+    if ax is None:
+        if plot_type == 'heatmap':
+            plt.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+        elif plot_type == 'scatterplot':
+            plt.scatter(x, y)
+            plt.axis((0, 1099, 0, 799))
+        plt.set_title(title)
+    else:
+        if plot_type == 'heatmap':
+            ax.hexbin(x, y, gridsize=25, extent=(0, 1099, 0, 799))
+        elif plot_type == 'scatterplot':
+            ax.scatter(x, y)
+            ax.axis((0, 1099, 0, 799))            
+        ax.set_title(title)
     
  # %% plot_nr_blinks
  

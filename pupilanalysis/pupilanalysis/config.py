@@ -17,14 +17,15 @@ data_eyetracking_path = data_dir / 'raw/eyetracking/asc'
 
 vt_start = 10
 vt_end = 5
-maxdur = 250
-margin = 5
-gap_margin = 10
-gap_vt = 10
+maxdur = 200
+margin = 3
+gap_margin = 5
+gap_vt = 8
 smooth_winlen = 5
 std_thr = 3
 
 # %% Baseline correction
 
-baseline_len = 10
+baseline_len = 5
+window_len = 25
 

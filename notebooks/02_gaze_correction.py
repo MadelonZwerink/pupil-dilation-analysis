@@ -54,7 +54,7 @@ for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
 plot_pupiltrace(dm, by='participant', signal='abs_dxtrace', show_individual_trials=True)
 plot_pupiltrace(dm, by='participant', signal='abs_dytrace', show_individual_trials=True)
 
-plot_pupiltrace(dm, by='condition', signal='abs_dxtrace', show_individual_trials=True)
-plot_pupiltrace(dm, by='condition', signal='abs_dytrace', show_individual_trials=True)
+plot_pupiltrace(dm, by='condition_grouped', signal='abs_dxtrace', show_individual_trials=False, ymin=0, ymax=600)
+plot_pupiltrace(dm, by='condition_grouped', signal='abs_dytrace', show_individual_trials=False, ymin=0, ymax=400)
 
 

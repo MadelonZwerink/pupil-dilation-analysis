@@ -127,7 +127,6 @@ def count_valid_traces(traces, nan_threshold=1.0):
 
     return len(valid_traces), valid_traces, mask
 
-import numpy as np
 import pandas as pd
 from datamatrix import operations as ops
 

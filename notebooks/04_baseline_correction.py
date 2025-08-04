@@ -204,3 +204,35 @@ dm.baselines_z_1 = z_scores
 dm.baselines_z_2 = z_scores_2
 plot_baselines(dm, col='baselines_z_1', title='Z-scores 1')
 plot_baselines(dm, col='baselines_z_2', title='Z-scores 2')
+
+# %% Does baseline change with increasing trial number?
+
+import matplotlib.pyplot as plt
+
+# Assuming `dm` is your DataFrame
+# Group by trialnr and compute mean and SEM (standard error of the mean)
+grouped = dm.groupby('trialnr')['baseline'].agg(['mean', 'sem']).reset_index()
+
+# Plot mean baseline per trial with error bars
+plt.errorbar(grouped['trialnr'], grouped['mean'], yerr=grouped['sem'], fmt='o', capsize=3)
+
+plt.xlabel('Trial Number')
+plt.ylabel('Average Baseline')
+plt.title('Baseline per Trial with Error Bars')
+plt.grid(True)
+plt.show()
+
+from datamatrix import operations as ops
+import seaborn as sns
+
+for inf in ops.split(dm.participant, "inf2", "inf3", "inf4", "inf5"):
+    plt.scatter(inf.trialnr, inf.baseline)
+    sns.regplot(x='trialnr', y='baseline', data=inf)
+    plt.title(f'{inf.participant[1]}')
+    plt.show()
+    # What happens if we only include the first two segments?
+    inf_short = inf[0:57]
+    plt.scatter(inf_short.trialnr, inf_short.baseline)
+    sns.regplot(x='trialnr', y='baseline', data=inf_short)
+    plt.title(f'{inf_short.participant[1]}')
+    plt.show()
