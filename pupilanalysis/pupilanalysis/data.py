@@ -99,7 +99,7 @@ def read_data(data_path):
     cleaned_dm.stim_type = stim_type
     cleaned_dm.stim_grouped = noise_or_fam
     
-    cleaned_dm.trialnr = list(range(1, 82)) * 4
+    cleaned_dm.trial = list(range(1, 82)) * 4
     
     # Extract participant labels from sessionid and store in participant
     cleaned_dm.sessionid = [re.search(r'\\00(\d+)_', filename).group(1) for filename in cleaned_dm.path]

@@ -26,6 +26,6 @@ std_thr = 3
 
 # %% Baseline correction
 
-baseline_len = 5
-window_len = 25
+baseline_len = 10
+window_len = 50
 

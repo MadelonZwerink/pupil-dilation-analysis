@@ -46,6 +46,8 @@ dm = read_data(data_eyetracking_path)
 
 # %% 3.1 Blink reconstruction and smoothing
 
+dm.ptraceraw = dm.ptrace
+
 dm.ptrace = srs.blinkreconstruct(dm.ptrace,
                                  vt_start=vt_start, 
                                  vt_end=vt_end,
@@ -57,19 +59,13 @@ dm.ptrace = srs.blinkreconstruct(dm.ptrace,
                                  std_thr=std_thr, 
                                  mode='advanced')
 
-# %% 3.2 Downsampling
+# %% 3.2 Baseline correction
 
-dm.ptrace_ds = srs.downsample(dm.ptrace, by=2)
-dm.xtrace_ds = srs.downsample(dm.xtrace, by=2)
-dm.ytrace_ds = srs.downsample(dm.ytrace, by=2)
-
-# %% 3.3 Baseline correction
-
-bl = baseline_correction(dm, col='ptrace_ds', baseline_len=baseline_len, window_len=window_len)
+bl = baseline_correction(dm, col='ptrace', baseline_len=baseline_len, window_len=window_len)
 dm.baseline = bl[0]
 dm.bl_start_index = bl[1]
-dm.pupil = SeriesColumn(depth = dm.ptrace_ds.depth)
-dm.pupil = dm.ptrace_ds - bl[0]
+dm.pupil = SeriesColumn(depth = dm.ptrace.depth)
+dm.pupil = dm.ptrace - bl[0]
 
 # Transform baseline to z-scores
 dm.bl_zscore = FloatColumn
@@ -151,29 +147,21 @@ dm.bl_incl[(dm.bl_zscore > 2.0) | (dm.bl_zscore < -2.0) | (dm.bl_zscore == NAN)]
 
 # %% 5.2 Remove trials based on missing data (trials with >70% missing data are excluded)
 
-trial_excl = perform_trial_exclusion(dm, threshold=0.7, t_end=dm.pupil.depth, col='ptrace_ds')
-dm.trial_incl = trial_excl[1].tolist() * 1
+#trial_excl = perform_trial_exclusion(dm, threshold=0.7, t_end=dm.pupil.depth, col='ptrace')
+#dm.trial_incl = trial_excl[1].tolist() * 1
 
 # %% 5.3 Combine both baseline based exclusion and missing data based exclusion
 
-dm.include = 0
-dm.include[(dm.bl_incl == 1) & (dm.trial_incl == 1)] = 1
+#dm.include = 0
+#dm.include[(dm.bl_incl == 1) & (dm.trial_incl == 1)] = 1
 
 # %% Save the dataset
 
-dm_clean = dm.include == 1
-dm_clean = dm_clean.participant != 'inf5'
-
-# %% 6. Analysis
-# =============================================================================
-# =============================================================================
-
 from datamatrix import convert as cnv
 
-dm_pd = cnv.to_pandas(dm_clean)
-dm_pd.to_csv('dm_clean.csv')
+dm_json = cnv.to_json(dm)
+# Replace NaN and Infinity with null in the JSON string
+dm_json_clean = dm_json.replace("NaN", "null").replace("Infinity", "null")
 
-dm_json = cnv.to_json(dm_clean)
-import json
-with open('dm.json', 'w', encoding='utf-8') as f:
-    json.dump(dm_json, f, ensure_ascii=False, indent=4)
+with open('C:/Users/madel/OneDrive/Documenten/BiBC/ADS_stage/pupil-dilation-analysis/data/processed/dm_raw.json', 'w', encoding='utf-8') as f:
+    f.write(dm_json_clean)

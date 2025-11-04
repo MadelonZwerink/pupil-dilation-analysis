@@ -1,8 +1,14 @@
 # General
 .DS_Store
-# data folder
 
+# data folder
 data/
+
+# other folders
+notebooks/archive/
+notebooks/figures/
+notebooks/Robjecten/
+.Rproj.user/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -112,3 +118,4 @@ venv.bak/
 # secrets
 secrets.sh
 secrets.py
+.Rproj.user

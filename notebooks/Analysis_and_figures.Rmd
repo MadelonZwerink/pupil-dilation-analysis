@@ -1,0 +1,712 @@
+---
+title: "Figures"
+author: "Madelon Zwerink"
+date: "2025-09-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(patchwork)
+library(broom.mixed)
+library(lme4)
+library(flexplot)
+library(slider)
+library(mgcv)
+library(gratia)
+library(ggVennDiagram)
+library(ggforce)
+library(grid)
+library(ggtext)
+```
+
+## Reading data
+
+```{r, include=FALSE}
+source('read_data_clean.R')
+```
+
+## Table 1: Missing data
+
+```{r}
+missing_frac <- dm %>%
+  select(trial, participant, ptraceraw, ptrace, pupil, bl_incl, gaze_incl, segment) %>%
+  mutate(
+    frac_na_ptraceraw = round(map_dbl(ptraceraw, ~ {
+      data <- unlist(.x)[0:750]
+      total <- length(data)
+      n_na <- sum(is.na(data))
+      n_na / total
+    }), digits = 2),
+    missing_samples = trial_summary$missing_samples,
+    frac_na_ptrace = map_dbl(ptrace, ~ {
+      data <- unlist(.x)[0:750]
+      total <- length(data)
+      n_na <- sum(is.na(data))
+      n_na / total
+    })
+  ) %>%
+  select(!c(ptraceraw, ptrace, pupil))
+
+summary_participant_samples <- missing_frac %>%
+  group_by(participant, segment) %>%
+  summarise(
+    missing_raw = sum(frac_na_ptraceraw == 1),
+    percentage_raw = round((sum(frac_na_ptraceraw == 1)/n()) * 100, digits = 1),
+    missing_samples = sum(missing_samples),
+    total_samples = 992 * n(),
+    percentage_samples = round((missing_samples / total_samples) * 100, 1),
+    incl_bl = sum(bl_incl == 1),  
+    excl_bl = sum(bl_incl == 0),
+    incl_gaze = sum(gaze_incl == 1),
+    excl_gaze = sum(gaze_incl == 0),
+    incl = sum(bl_incl == 1 & gaze_incl == 1),
+    excl = sum(bl_incl == 0 | gaze_incl == 0),
+    nr_trials = n()
+  )
+
+summary_all_samples <- summary_participant_samples %>%
+  group_by(segment) %>%
+  summarise(
+    missing_raw = sum(missing_raw),
+    percentage_raw = round((sum(missing_raw)/sum(nr_trials)) * 100, 1),
+    missing_samples = sum(missing_samples),
+    total_samples = sum(total_samples),
+    percentage_samples = round((sum(missing_samples) / sum(total_samples)) * 100, 1),
+    incl_bl = sum(incl_bl),
+    excl_bl = sum(excl_bl),
+    incl_gaze = sum(incl_gaze),
+    excl_gaze = sum(excl_gaze),
+    incl = sum(incl),
+    excl = sum(excl),
+    participant = "All participants"
+  )
+
+all_segments_samples <- summary_all_samples %>%
+  summarise(
+    missing_raw = sum(missing_raw),
+    percentage_raw = round((sum(missing_raw)/sum(nr_trials)) * 100, 1),
+    missing_samples = sum(missing_samples),
+    total_samples = sum(total_samples),
+    percentage_samples = round((sum(missing_samples) / sum(total_samples)) * 100, 1),
+    incl_bl = sum(incl_bl),
+    excl_bl = sum(excl_bl),
+    incl_gaze = sum(incl_gaze),
+    excl_gaze = sum(excl_gaze),
+    incl = sum(incl),
+    excl = sum(excl),
+    participant = "All participants",
+    segment = "All segments"
+  )
+
+per_participant_all_segments_samples <- summary_participant_samples %>%
+  group_by(participant) %>%
+  summarise(
+    missing_raw = sum(missing_raw),
+    percentage_raw = round((sum(missing_raw)/sum(nr_trials)) * 100, 1),
+    missing_samples = sum(missing_samples),
+    total_samples = sum(total_samples),
+    percentage_samples = round((missing_samples / total_samples) * 100, 1),
+    incl_bl = sum(incl_bl),
+    excl_bl = sum(excl_bl),
+    incl_gaze = sum(incl_gaze),
+    excl_gaze = sum(excl_gaze),
+    incl = sum(incl),
+    excl = sum(excl),
+    segment = "All segments"
+  )
+
+summary_combined <- bind_rows(
+  all_segments_samples,
+  per_participant_all_segments_samples,
+  summary_all_samples,
+  summary_participant_samples
+)
+```
+
+```{r}
+table1 <- summary_combined %>%
+  mutate(formatted = paste0(missing_raw, " (", percentage_raw, "%)")) %>%
+  select(segment, participant, formatted) %>%
+  pivot_wider(
+    names_from = participant,
+    values_from = formatted
+  )
+
+table1
+```
+
+## Table 2: recorded samples
+
+```{r}
+table2 <- summary_combined %>%
+  mutate(formatted = paste0(100 - percentage_samples, "%")) %>%
+  select(segment, participant, formatted) %>%
+  pivot_wider(
+    names_from = participant,
+    values_from = formatted
+  )
+
+table2
+```
+
+## Figure 2: Trackloss and gaze deviation
+
+```{r}
+trackloss <- dm_long %>%
+  filter(time < 3900) %>%
+  group_by(participant, time) %>%
+  summarise(missing_datapoints = sum(ifelse(is.na(ptraceraw), 1, 0)),
+            avg_xgaze = mean(dxtrace, na.rm = TRUE),
+            avg_ygaze = mean(dytrace, na.rm = TRUE),
+            sd_xgaze = sd(dxtrace, na.rm = TRUE),
+            sd_ygaze = sd(dytrace, na.rm = TRUE))
+```
+
+```{r}
+F2A <- ggplot(trackloss, aes(x = time, y = missing_datapoints)) +
+      geom_bar(stat = 'identity', width = 4, alpha = 0.5, fill = 'darkgreen') +
+      facet_wrap(vars(participant), nrow = 1) +
+      theme_bw() +
+      labs(x = 'Time relative to onset stimulus (ms)',
+           y = 'Missing datapoints\n(count)') +
+      ylim(0, 81) +
+      theme(axis.title.x = element_blank())
+
+F2B <- ggplot(trackloss, aes(x = time)) +
+      annotate('segment', y = 0, x = 0, xend = 3900) +
+      geom_line(aes(y = avg_xgaze), colour = 'darkgreen') +
+      geom_ribbon(aes(ymin = avg_xgaze - sd_xgaze, ymax = avg_xgaze + sd_xgaze), alpha = 0.4, fill = 'darkgreen') +
+      facet_wrap(vars(participant), nrow = 1) +
+      theme_bw() +
+      labs(x = 'Time relative to onset stimulus (ms)',
+           y = 'Horizontal gaze deviation\n(pixels)') +
+      theme(axis.title.x = element_blank(), strip.text = element_blank())
+
+F2C <- ggplot(trackloss, aes(x = time)) +
+      annotate('segment', y = 0, x = 0, xend = 3900) +
+      geom_line(aes(y = avg_ygaze), colour = 'darkgreen') +
+      geom_ribbon(aes(ymin = avg_ygaze - sd_ygaze, ymax = avg_ygaze + sd_ygaze), alpha = 0.4, fill = 'darkgreen') +
+      facet_wrap(vars(participant), nrow = 1) +
+      theme_bw() +
+      labs(x = 'Time relative to onset stimulus (ms)',
+           y = 'Vertical gaze deviation\n(pixels)') +
+      theme(strip.text = element_blank())
+```
+
+```{r}
+F2A / F2B / F2C
+```
+
+## Missing baselines
+
+```{r}
+# Number of trials with a missing baseline:
+sum(is.na(dm$baseline))
+# Number of trials with a Z-score <-2 or >2
+sum(dm$bl_zscore < -2 | dm$bl_zscore > 2, na.rm = T)
+# Total number of trials that were excluded based on baseline
+sum(dm$bl_incl == 0)
+# Number of succesfully baselined trials
+sum(dm$bl_incl == 1)
+```
+
+## Figure 3: Gaze coordinates
+
+```{r}
+med_gaze <- dm %>%
+  filter(trial == 1) %>%
+  select(participant, medx_participant, medy_participant) 
+```
+
+```{r}
+F3 <- dm_long %>%
+  select(xtrace, ytrace, participant) %>%
+  ggplot(aes(x = xtrace - 600, y = ytrace - 400)) +
+  geom_hline(yintercept = 0, alpha = 0.6) +
+  geom_vline(xintercept = 0, alpha = 0.6) +
+  geom_hex() +
+#  geom_point(data = med_gaze, aes(x = medx_participant - 600, y = medy_participant - 400), colour = 'red', size = 3) +
+  facet_wrap(vars(participant)) +
+  xlim(-600, 600) +
+  ylim(-400, 400) +
+  theme_bw() +
+  labs(x = 'Gaze X-coordinate\nrelative to centre screen',
+       y = 'Gaze Y-coordinate\nrelative to centre screen') +
+  scale_fill_viridis_c()
+```
+
+```{r}
+F3
+```
+
+## Table 3: Baseline-included trials
+
+```{r}
+table3 <- summary_combined %>%
+  select(segment, participant, incl_bl) %>%
+  pivot_wider(
+    names_from = participant,
+    values_from = incl_bl
+  )
+
+table3
+```
+
+## Figure 4: Baseline pupil sizes
+
+```{r}
+F4 <- dm %>%
+  select(baseline, participant) %>%
+  ggplot(aes(x = baseline)) +
+  geom_histogram(fill = 'darkgreen', binwidth = 50, alpha = 0.5) +
+  facet_wrap(vars(participant), scales = 'free_y') +
+  theme_bw() +
+  labs(x = "Baseline pupil size (A.U.)",
+       y = 'Frequency')
+```
+
+```{r}
+F4
+```
+
+## Figure 5: Excluded trials based on gaze deviation from participant median
+
+```{r}
+F5 <- dm %>%
+  select(med_x, med_y, participant, gaze_incl, bl_incl) %>%
+  ggplot(aes(x = med_x - 600, y = med_y - 400, colour = as.factor(gaze_incl))) +
+  geom_hline(yintercept = 0, alpha = 0.6) +
+  geom_vline(xintercept = 0, alpha = 0.6) +
+  geom_circle(data = med_gaze, aes(x0 = medx_participant - 600, y0 = medy_participant - 400, r = 250), 
+             fill = 'cyan', colour = adjustcolor('cyan', alpha.f = 0.1), alpha = 0.1, inherit.aes = F) +
+  geom_point(alpha = 0.8) +
+  facet_wrap(vars(participant)) +
+  xlim(-600, 600) +
+  ylim(-400, 400) +
+  theme_bw() +
+  labs(x = 'Gaze X-coordinate\nrelative to centre screen',
+       y = 'Gaze Y-coordinate\nrelative to centre screen') +
+  scale_fill_viridis_c() +
+  theme(legend.position = 'none')
+```
+
+```{r}
+F5
+```
+
+## Table 4: Gaze-included trials
+
+```{r}
+table4 <- summary_combined %>%
+  select(segment, participant, incl_gaze) %>%
+  pivot_wider(
+    names_from = participant,
+    values_from = incl_gaze
+  )
+
+table4
+```
+
+## Table 5: All included trials
+
+```{r}
+table5 <- summary_combined %>%
+  select(segment, participant, incl) %>%
+  pivot_wider(
+    names_from = participant,
+    values_from = incl
+  )
+
+table5
+```
+
+## Figure 6: Pupil traces
+
+```{r}
+dm_long %>%
+  dplyr::filter(pupil_sample_incl == 1) %>%
+  ggplot(aes(x = time, y = lppupil, group = index, colour = as.factor(trial))) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(vars(participant), scales = 'free_y') +
+  theme_bw() +
+  labs(y = "Pupil size",
+       x = 'Time (ms) from onset stimulus') +
+  theme(legend.position = 'none')
+```
+
+## TRIAL EXCLUSION
+
+```{r}
+# Remove inf5 from the datasets
+dm <- dm[dm$participant != "inf5", ]
+dm_long <- dm_long[dm_long$participant != "inf5", ]
+
+# Trial exclusion
+list_inclusion <- list(baseline = which(dm$bl_incl == 1),
+                       gaze = which(dm$gaze_incl == 1),
+                       data_loss = which(dm$trial_incl == 1))
+
+ggVennDiagram(list_inclusion)
+
+with(dm,
+     table(bl_incl, gaze_incl, trial_incl, exclude = NULL))
+
+dm_long_clean <- dm_long[dm_long$include == 1, ]
+dm_clean <- dm[dm$include == 1, ]
+```
+
+## Figure 7: all traces together, smoothed
+
+```{r}
+# Define onset (always 0)
+stim_onset <- 0
+
+# Define variable duration range
+stim_dur_min <- min(dm$dur * 1000)
+stim_dur_max <- max(dm$dur * 1000)
+stim_dur_mid <- mean(c(stim_dur_min, stim_dur_max))
+
+dm_long_clean %>%
+  dplyr::filter(time < 3950, pupil_sample_incl == 1) %>%
+  ggplot(aes(x = time, y = lppupil)) +
+
+  # Shaded window (stimulus period range)
+  annotate("rect",
+           xmin = stim_dur_min, xmax = stim_dur_max,
+           ymin = -Inf, ymax = Inf,
+           fill = "lightgrey", alpha = 0.2) +
+  
+  # baseline
+  geom_hline(yintercept = 0, colour = "black") +
+  
+  # Smooth trace
+  geom_smooth(se = TRUE, linewidth = 1, colour = "darkgreen") +
+
+  # Horizontal band above x-axis showing duration variability
+  annotate("rect",
+           xmin = stim_dur_min, xmax = stim_dur_max,
+           ymin = 32, ymax = 33,   # adjust height to your data
+           fill = "darkgrey", alpha = 0.6) +
+    # Horizontal band above x-axis showing duration variability
+  annotate("rect",
+           xmin = stim_onset, xmax = stim_dur_min,
+           ymin = 32, ymax = 33,   # adjust height to your data
+           fill = "darkgrey") +
+
+  # Dashed vertical lines for min/max duration
+  annotate("segment", x = stim_dur_min, xend = stim_dur_min,
+           y = 31.5, yend = 33, colour = "black", 
+           linetype = "dashed") +
+  annotate("segment", x = stim_dur_max, xend = stim_dur_max,
+           y = 31.5, yend = 33, colour = "black", 
+           linetype = "dashed") +
+
+  # Stimulus onset arrow
+  annotate("segment", x = stim_onset, xend = stim_onset,
+           y = 33, yend = -Inf,
+           colour = "black") +
+  annotate("text",
+           x = stim_onset, y = 33.5,
+           label = "stimulus onset",
+           vjust = 0, hjust = 0.4, size = 4.5, fontface = "italic") +
+
+  # Label for duration range (above y-axis)
+  annotate("text",
+           x = stim_dur_mid, y = 33.5,
+           label = "stimulus offset",
+           hjust = 0.5, vjust = 0, size = 4.5, fontface = "italic") +
+
+  # Formatting
+  labs(y = "Pupil size (A.U.)", 
+       x = "Time (ms) from stimulus onset") +
+  coord_cartesian(ylim = c(-5, 35)) +
+  theme_bw(base_size = 15) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(face = "bold"),
+    plot.margin = margin(15, 20, 15, 20)
+  )
+```
+
+## Supplementary figure: fig. 7 per participant
+
+```{R}
+dm_long_clean %>%
+  dplyr::filter(time < 3950 & pupil_sample_incl == 1) %>%
+  ggplot(aes(x = time, y = lppupil)) +
+  geom_rect(aes(xmin = min(dm$dur * 1000), xmax = max(dm$dur * 1000), ymin = -Inf, ymax = Inf), 
+            inherit.aes = FALSE, fill = 'grey') +
+  geom_hline(yintercept = 0) +
+  geom_smooth(se = TRUE, linewidth = 1, colour = "darkgreen") +
+  labs(y = "Pupil size",
+       x = 'Time (ms) from onset stimulus') +
+  theme_bw() +
+  facet_wrap(vars(participant))
+```
+
+## Calculate metrics for statistical analysis: mean pupil response
+
+```{r}
+library(pracma)  
+library(lmerTest)
+
+# define analysis window: 200–2000 ms
+win_start <- 200
+win_end   <- 2500
+
+PDR_summary <- dm_long_clean %>%
+  group_by(index, participant, trial, type, segment, baseline) %>%
+  summarise(
+    auc = {
+      sel <- time >= win_start & time <= win_end
+      if (any(sel)) trapz(time[sel], pupil[sel]) else NA_real_
+    },
+    mean_response = mean(pupil[time >= win_start & time <= win_end], na.rm = TRUE),
+    auc_lp = {
+      sel <- time >= win_start & time <= win_end
+      if (any(sel)) trapz(time[sel], lppupil[sel]) else NA_real_
+    },
+    mean_response_lp = mean(lppupil[time >= win_start & time <= win_end], na.rm = TRUE),
+    .groups = "drop",
+    mean_200_1200 = mean(pupil[time >= win_start & time <= 1200], na.rm = TRUE),
+    mean_1200_2200 = mean(pupil[time >= 1200 & time <= 2200], na.rm = TRUE),
+    mean_200_2000 = mean(pupil[time >= 200 & time <= 2000], na.rm = TRUE)
+  )
+```
+
+## Research question 1: Does the pupil respond to auditory stimuli?
+
+```{r}
+## Assumption of normally distributed data
+hist(PDR_summary$mean_response, 
+     main = 'Histogram of mean pupil sizes (200-2500ms)',
+     xlab = 'Mean pupil size',
+     breaks = seq(-300, 200, by = 25))
+
+qqnorm(PDR_summary$mean_response)
+qqline(PDR_summary$mean_response)
+
+t.test(PDR_summary$mean_response)
+t.test(PDR_summary$mean_response[PDR_summary$index != 7])
+```
+
+## Figure 7b: Mean pupil size boxplot
+
+```{r}
+# Create a dummy spacer row
+PDR_summary_combined <- PDR_summary %>%
+  mutate(participant = as.character(participant)) %>%
+  bind_rows(
+    PDR_summary %>%
+      mutate(participant = "All")
+  ) %>%
+  bind_rows(
+    tibble(participant = " ", mean_response = NA, type = 'noise')  # spacer
+  )
+
+# Factor order: sorted participants, spacer, then All
+PDR_summary_combined$participant <- factor(
+  PDR_summary_combined$participant,
+  levels = c(sort(unique(PDR_summary$participant)), " ", "All")
+)
+
+n_participants <- length(unique(PDR_summary$participant))
+
+ggplot(PDR_summary_combined, aes(x = participant, y = mean_response)) +
+  geom_hline(yintercept = 0, colour = "black", linetype = "dashed") +
+  # Boxplots
+  geom_boxplot(aes(fill = participant), colour = 'black',
+               width = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, height = 0, alpha = 0.5) +
+  # Axis labels
+  labs(x = "Participant", y = "Mean pupil size (200–2500 ms)") +
+  # Fill colors (participants, spacer, All)
+  scale_fill_manual(
+    values = c(
+      RColorBrewer::brewer.pal(n = n_participants, "Set1"),  # participants
+      "grey60"  # All
+    )
+  ) +
+    # Bold "All" label with markdown
+  scale_x_discrete(
+    labels = c(unique(PDR_summary$participant), "",
+               "<b>All participants</b>")  # bold markdown for 'All'
+  ) +
+  theme_bw(base_size = 15) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(face = "bold"),
+    legend.position = "none",
+    axis.text.x = element_markdown(),
+    axis.title.x = element_text(hjust = 0.3)  # adjust until centered visually
+  )
+
+```
+
+## Figure 8: traces smooth for types
+
+```{R}
+dm_long_clean %>%
+  dplyr::filter(time < 3950, pupil_sample_incl == 1) %>%
+  ggplot(aes(x = time, y = lppupil, group = index, colour = type)) +
+
+  # Shaded window (stimulus period range)
+  annotate("rect",
+           xmin = stim_dur_min, xmax = stim_dur_max,
+           ymin = -Inf, ymax = Inf,
+           fill = "lightgrey", alpha = 0.2) +
+  
+  # baseline
+  geom_hline(yintercept = 0, colour = "black") +
+  
+  # Smooth trace
+  geom_smooth(aes(group = type), se = TRUE, linewidth = 1) +
+
+  # Horizontal band above x-axis showing duration variability
+  annotate("rect",
+           xmin = stim_dur_min, xmax = stim_dur_max,
+           ymin = 34, ymax = 35,   # adjust height to your data
+           fill = "darkgrey", alpha = 0.6) +
+    # Horizontal band above x-axis showing duration variability
+  annotate("rect",
+           xmin = stim_onset, xmax = stim_dur_min,
+           ymin = 34, ymax = 35,   # adjust height to your data
+           fill = "darkgrey") +
+
+  # Dashed vertical lines for min/max duration
+  annotate("segment", x = stim_dur_min, xend = stim_dur_min,
+           y = 32.5, yend = 35, colour = "black", 
+           linetype = "dashed") +
+  annotate("segment", x = stim_dur_max, xend = stim_dur_max,
+           y = 32.5, yend = 35, colour = "black", 
+           linetype = "dashed") +
+
+  # Stimulus onset arrow
+  annotate("segment", x = stim_onset, xend = stim_onset,
+           y = 35, yend = -Inf,
+           colour = "black") +
+  annotate("text",
+           x = stim_onset, y = 35.5,
+           label = "stimulus onset",
+           vjust = 0, hjust = 0.4, size = 4.5, fontface = "italic") +
+
+  # Label for duration range (above y-axis)
+  annotate("text",
+           x = stim_dur_mid, y = 35.5,
+           label = "stimulus offset",
+           hjust = 0.5, vjust = 0, size = 4.5, fontface = "italic") +
+
+  # Formatting
+  labs(y = "Pupil size (A.U.)", x = "Time (ms) from stimulus onset") +
+  theme_bw(base_size = 15) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(face = "bold"),
+    plot.margin = margin(15, 20, 15, 20),
+    legend.position = c(0.97, 0.97),
+    legend.justification = c("right", "top"),
+    legend.background = element_rect(fill = "white", colour = "grey80"),
+    legend.key = element_rect(fill = "white")
+  )
+```
+
+## Supplementary figure: fig. 8 per participant
+
+```{R}
+dm_long_clean %>%
+  dplyr::filter(time < 3950 & pupil_sample_incl == 1) %>%
+  ggplot(aes(x = time, y = lppupil, group = index, colour = type)) +
+  geom_rect(aes(xmin = min(dm$dur * 1000), xmax = max(dm$dur * 1000), ymin = -Inf, ymax = Inf), 
+            inherit.aes = FALSE, fill = 'grey') +
+  geom_hline(yintercept = 0) +
+  geom_smooth(aes(group = type), se = TRUE, linewidth = 1) +
+  labs(y = "Pupil size",
+       x = 'Time (ms) from onset stimulus') +
+  theme_bw()+
+  theme(legend.position = 'bottom') +
+  facet_wrap(vars(participant))
+```
+
+## Research question 2: Is there a difference between noise and language trials?
+
+```{r}
+model_simple <- lmer(mean_response ~ type + (1 | participant),
+                     data = PDR_summary)
+confint(model_simple)
+summary(model_simple)
+visualize(model_simple)
+```
+
+## Figure 8b: boxplots per type
+
+```{r}
+# Plot
+ggplot(PDR_summary_combined, aes(x = participant, y = mean_response, fill = type)) +
+  geom_hline(yintercept = 0, colour = "black", linetype = "dashed") +
+  # Boxplots
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, outlier.shape = NA) +
+  # Points with jitter + dodge
+  geom_point(
+    position = position_jitterdodge(
+      dodge.width = 0.7,  # same as boxplot dodge
+      jitter.width = 0.1   # horizontal jitter within each type
+    ),
+    alpha = 0.6
+  ) +
+  # Labels
+  labs(x = "Participant", y = "Mean response") +
+  # Bold "All" label
+  scale_x_discrete(labels = c(sort(unique(PDR_summary$participant)), "", "<b>All participants</b>")) +
+  theme_bw(base_size = 15) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(face = "bold"),
+    legend.position = "top",
+    axis.text.x = element_markdown(),
+    axis.title.x = element_text(hjust = 0.3)
+  )
+```
+
+## Figure 9: HPP data
+
+```{r}
+headturn_test <- read.csv("./data/raw/headturn/headturn-test-1.csv", skip = 1, sep = ";")
+# Add the general participant labels
+# ppid == 'pilot1' ~ 'inf1', and ppid == 'inf_pilot5' ~ 'inf5' are not included
+headturn_test <- headturn_test %>%
+  mutate(participant = case_when(ppid == 'pilot1' ~ 'inf1',
+                                 ppid == 'inf_pilot2' ~ 'inf2',
+                                 ppid == 'test_pilot1' ~ 'inf3',
+                                 ppid == 'inf_pilot4' ~ 'inf4',
+                                 ppid == 'inf_pilot5' ~ 'inf5')) %>%
+  dplyr::filter(!is.na(participant)) %>%
+  mutate(test_type = factor(test_type, levels = c("TT_FAMILIAR", "TT_UNGRAMMATICAL", "TT_NEW_GRAMMATICAL")))
+
+# Precompute median per participant and test type
+headturn_summary <- headturn_test %>%
+  group_by(participant, test_type) %>%
+  dplyr::filter(looking_time_ms > 1000) %>%
+  summarise(median_time = median(looking_time_ms, na.rm = TRUE),
+            mean_time = mean(looking_time_ms, na.rm = TRUE),
+            .groups = "drop")
+```
+
+
+```{r}
+ggplot(headturn_summary[headturn_summary$participant %in% c('inf2', 'inf3', 'inf4'),], 
+       aes(x = test_type, y = mean_time, fill = test_type)) +
+  geom_bar(stat = "identity") +
+  geom_point(data = headturn_test[headturn_test$participant %in% c('inf2', 'inf3', 'inf4') & headturn_test$looking_time_ms > 1000,], 
+             aes(y = looking_time_ms), alpha = 0.3) +
+  labs(x = "", y = "Median looking time (ms)") +
+  theme_bw(base_size = 15) +
+  facet_wrap(vars(participant), ncol = 3) +
+  theme(legend.position = 'none') +
+  scale_x_discrete(labels = c(
+    "TT_FAMILIAR"       = "Familiar",
+    "TT_UNGRAMMATICAL"  = "Un-\ngrammatical",
+    "TT_NEW_GRAMMATICAL"= "New\nGrammatical"
+  ))
+```
+
